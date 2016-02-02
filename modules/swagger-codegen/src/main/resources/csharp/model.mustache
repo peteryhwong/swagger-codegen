@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Runtime.Serialization;
 using Newtonsoft.Json;
 
@@ -16,8 +17,17 @@ namespace {{packageName}}.Model
     /// {{description}}
     /// </summary>
     [DataContract]
-    public class {{classname}} : IEquatable<{{classname}}>{{#parent}}, {{{parent}}}{{/parent}}
+    public class {{classname}} : {{#parent}}{{{parent}}}, {{/parent}} IEquatable<{{classname}}>
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="{{classname}}" /> class.
+        /// </summary>
+        public {{classname}}()
+        {
+            {{#vars}}{{#defaultValue}}this.{{name}} = {{{defaultValue}}};
+            {{/defaultValue}}{{/vars}}
+        }
+
         {{#vars}}
         /// <summary>
         /// {{^description}}Gets or Sets {{{name}}}{{/description}}{{#description}}{{{description}}}{{/description}}
@@ -65,7 +75,7 @@ namespace {{packageName}}.Model
         /// <summary>
         /// Returns true if {{classname}} instances are equal
         /// </summary>
-        /// <param name="obj">Instance of {{classname}} to be compared</param>
+        /// <param name="other">Instance of {{classname}} to be compared</param>
         /// <returns>Boolean</returns>
         public bool Equals({{classname}} other)
         {
@@ -83,7 +93,7 @@ namespace {{packageName}}.Model
                     this.{{name}} == other.{{name}} ||
                     this.{{name}} != null &&
                     this.{{name}}.SequenceEqual(other.{{name}})
-                ){{#hasMore}} && {{/hasMore}}{{/isNotContainer}}{{/vars}};
+                ){{#hasMore}} && {{/hasMore}}{{/isNotContainer}}{{/vars}}{{^vars}}false{{/vars}};
         }
 
         /// <summary>
@@ -99,7 +109,7 @@ namespace {{packageName}}.Model
                 // Suitable nullity checks etc, of course :)
                 {{#vars}}
                 if (this.{{name}} != null)
-                    hash = hash * 57 + this.{{name}}.GetHashCode();
+                    hash = hash * 59 + this.{{name}}.GetHashCode();
                 {{/vars}}
                 return hash;
             }

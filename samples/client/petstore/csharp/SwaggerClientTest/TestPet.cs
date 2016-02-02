@@ -6,16 +6,19 @@ using System.Collections.Generic;
 using IO.Swagger.Api;
 using IO.Swagger.Model;
 using IO.Swagger.Client;
+using System.Reflection;
 
-
-namespace SwaggerClient.TestPet
+namespace SwaggerClientTest.TestPet
 {
 	[TestFixture ()]
 	public class TestPet
 	{
 		public long petId = 11088;
 
-		[SetUp] public void Init()
+		/// <summary>
+		/// Create a Pet object
+		/// </summary>
+		private Pet createPet()
 		{
 			// create pet
 			Pet p = new Pet();
@@ -36,6 +39,24 @@ namespace SwaggerClient.TestPet
 			p.Category = category;
 			p.PhotoUrls = photoUrls;
 
+			return p;
+		}
+
+		/// <summary>
+		/// Convert string to byte array
+		/// </summary>
+		private byte[] GetBytes(string str)
+		{
+			byte[] bytes = new byte[str.Length * sizeof(char)];
+			System.Buffer.BlockCopy(str.ToCharArray(), 0, bytes, 0, bytes.Length);
+			return bytes;
+		}
+
+		[SetUp] public void Init()
+		{
+			// create pet
+			Pet p = createPet();
+
 			// add pet before testing
 			PetApi petApi = new PetApi("http://petstore.swagger.io/v2/");
 			petApi.AddPet (p);
@@ -49,7 +70,9 @@ namespace SwaggerClient.TestPet
 			petApi.DeletePet(petId, "test key");
 		}
 
-
+		/// <summary>
+		/// Test GetPetByIdAsync
+		/// </summary>
 		[Test ()]
 		public void TestGetPetByIdAsync ()
 		{
@@ -74,10 +97,48 @@ namespace SwaggerClient.TestPet
 
 		}
 
+		/// <summary>
+		/// Test GetPetByIdAsyncWithHttpInfo
+		/// </summary>
+		[Test ()]
+		public void TestGetPetByIdAsyncWithHttpInfo ()
+		{
+			PetApi petApi = new PetApi ();
+			var task = petApi.GetPetByIdAsyncWithHttpInfo (petId);
+
+			Assert.AreEqual (200, task.Result.StatusCode);
+			Assert.IsTrue (task.Result.Headers.ContainsKey("Content-Type"));
+			Assert.AreEqual (task.Result.Headers["Content-Type"], "application/json");
+
+			Pet response = task.Result.Data;
+			Assert.IsInstanceOf<Pet> (response, "Response is a Pet");
+
+			Assert.AreEqual ("Csharp test", response.Name);
+			Assert.AreEqual ("available", response.Status);
+
+			Assert.IsInstanceOf<List<Tag>> (response.Tags, "Response.Tags is a Array");
+			Assert.AreEqual (petId, response.Tags [0].Id);
+			Assert.AreEqual ("sample tag name1", response.Tags [0].Name);
+
+			Assert.IsInstanceOf<List<String>> (response.PhotoUrls, "Response.PhotoUrls is a Array");
+			Assert.AreEqual ("sample photoUrls", response.PhotoUrls [0]);
+
+			Assert.IsInstanceOf<Category> (response.Category, "Response.Category is a Category");
+			Assert.AreEqual (56, response.Category.Id);
+			Assert.AreEqual ("sample category name2", response.Category.Name);
+
+		}
+
+		/// <summary>
+		/// Test GetPetById
+		/// </summary>
 		[Test ()]
 		public void TestGetPetById ()
 		{
-			PetApi petApi = new PetApi ();
+			// set timeout to 10 seconds
+			Configuration c1 = new Configuration (timeout: 10000);
+
+			PetApi petApi = new PetApi (c1);
 			Pet response = petApi.GetPetById (petId);
 			Assert.IsInstanceOf<Pet> (response, "Response is a Pet");
 
@@ -97,6 +158,38 @@ namespace SwaggerClient.TestPet
 
 		}
 
+		/// <summary>
+		/// Test GetPetByIdWithByteArray
+		/// </summary>
+		[Test ()]
+		public void TestGetPetByIdWithByteArray ()
+		{
+			// set timeout to 10 seconds
+			Configuration c1 = new Configuration (timeout: 10000);
+
+			PetApi petApi = new PetApi (c1);
+			byte[] response = petApi.GetPetByIdWithByteArray (petId);
+			Assert.IsInstanceOf<byte[]> (response, "Response is byte array");
+		}
+
+		/// <summary>
+		/// Test AddPetUsingByteArray
+		/// </summary>
+		[Test ()]
+		public void TestAddPetUsingByteArray ()
+		{
+			// set timeout to 10 seconds
+			Configuration c1 = new Configuration (timeout: 10000);
+
+			PetApi petApi = new PetApi (c1);
+			Pet p = createPet ();
+			byte[] petByteArray = GetBytes ((string)petApi.Configuration.ApiClient.Serialize (p));
+			petApi.AddPetUsingByteArray (petByteArray);
+		}
+
+		/// <summary>
+		/// Test UpdatePetWithForm
+		/// </summary>
 		[Test ()]
 		public void TestUpdatePetWithForm ()
 		{
@@ -113,23 +206,34 @@ namespace SwaggerClient.TestPet
 
 			Assert.AreEqual (petId, response.Tags [0].Id);
 			Assert.AreEqual (56, response.Category.Id);
+
+			// test optional parameter
+			petApi.UpdatePetWithForm (petId.ToString(), "new form name2");
+			Pet response2 = petApi.GetPetById (petId);
+			Assert.AreEqual ("new form name2", response2.Name);
 		}
 
+		/// <summary>
+		/// Test UploadFile
+		/// </summary>
 		[Test ()]
 		public void TestUploadFile ()
 		{
-			PetApi petApi = new PetApi ();
-			//NOTE: please provide a valid file (full path)
-			FileStream fileStream = new FileStream("/var/tmp/small.gif", FileMode.Open);
+		    Assembly _assembly = Assembly.GetExecutingAssembly();
+		    Stream _imageStream = _assembly.GetManifestResourceStream("SwaggerClientTest.swagger-logo.png");
+            PetApi petApi = new PetApi ();
 			// test file upload with form parameters
-			petApi.UploadFile(petId, "new form name", fileStream);
+			petApi.UploadFile(petId, "new form name", _imageStream);
 
 			// test file upload without any form parameters
-			petApi.UploadFile(petId, null, fileStream);
+			// using optional parameter syntax introduced at .net 4.0
+			petApi.UploadFile(petId: petId, file: _imageStream);
 
 		}
 
-
+		/// <summary>
+		/// Test FindPetByStatus
+		/// </summary>
 		[Test ()]
 		public void TestFindPetByStatus ()
 		{
@@ -145,6 +249,9 @@ namespace SwaggerClient.TestPet
 
 		}
 
+		/// <summary>
+		/// Test Equal
+		/// </summary>
 		[Test ()]
 		public void TestEqual()
 		{
@@ -207,6 +314,32 @@ namespace SwaggerClient.TestPet
 
 		}
 
+		/// <summary>
+		/// Test status code
+		/// </summary>
+		[Test ()]
+		public void TestStatusCodeAndHeader ()
+		{
+			PetApi petApi = new PetApi ();
+			var response = petApi.GetPetByIdWithHttpInfo (petId);
+			Assert.AreEqual (response.StatusCode, 200);
+			Assert.IsTrue (response.Headers.ContainsKey("Content-Type"));
+			Assert.AreEqual (response.Headers["Content-Type"], "application/json");
+		}
+
+		/// <summary>
+		/// Test default header (should be deprecated
+		/// </summary>
+		[Test ()]
+		public void TestDefaultHeader ()
+		{
+			PetApi petApi = new PetApi ();
+			// there should be a warning for using AddDefaultHeader (deprecated) below
+			petApi.AddDefaultHeader ("header_key", "header_value");
+			// the following should be used instead as suggested in the doc
+			petApi.Configuration.AddDefaultHeader ("header_key2", "header_value2");
+
+		}
 	}
 }
 
