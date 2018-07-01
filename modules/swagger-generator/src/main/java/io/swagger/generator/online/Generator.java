@@ -1,22 +1,16 @@
 package io.swagger.generator.online;
 
 import com.fasterxml.jackson.databind.JsonNode;
-
-import io.swagger.codegen.CliOption;
-import io.swagger.codegen.ClientOptInput;
-import io.swagger.codegen.ClientOpts;
-import io.swagger.codegen.Codegen;
-import io.swagger.codegen.CodegenConfig;
-import io.swagger.codegen.CodegenConfigLoader;
+import io.swagger.codegen.*;
 import io.swagger.generator.exception.ApiException;
 import io.swagger.generator.exception.BadRequestException;
 import io.swagger.generator.model.GeneratorInput;
 import io.swagger.generator.model.InputOption;
 import io.swagger.generator.util.ZipUtil;
 import io.swagger.models.Swagger;
+import io.swagger.models.auth.AuthorizationValue;
 import io.swagger.parser.SwaggerParser;
 import io.swagger.util.Json;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +28,8 @@ public class Generator {
         try {
             config = CodegenConfigLoader.forName(language);
         } catch (Exception e) {
-            throw new BadRequestException(String.format("Unsupported target %s supplied. %s", language, e));
+            throw new BadRequestException(String.format("Unsupported target %s supplied. %s",
+                    language, e));
         }
         Map<String, CliOption> map = new LinkedHashMap<String, CliOption>();
         for (CliOption option : config.cliOptions()) {
@@ -44,8 +39,7 @@ public class Generator {
     }
 
     public enum Type {
-        CLIENT("client"),
-        SERVER("server");
+        CLIENT("client"), SERVER("server");
 
         private String name;
 
@@ -66,23 +60,38 @@ public class Generator {
         return generate(language, opts, Type.SERVER);
     }
 
-    private static String generate(String language, GeneratorInput opts, Type type) throws ApiException {
+    private static String generate(String language, GeneratorInput opts, Type type)
+            throws ApiException {
         LOGGER.debug(String.format("generate %s for %s", type.getTypeName(), language));
         if (opts == null) {
             throw new BadRequestException("No options were supplied");
         }
         JsonNode node = opts.getSpec();
-        if(node != null && "{}".equals(node.toString())) {
+        if (node != null && "{}".equals(node.toString())) {
             LOGGER.debug("ignoring empty spec");
             node = null;
         }
         Swagger swagger;
         if (node == null) {
             if (opts.getSwaggerUrl() != null) {
-                swagger = new SwaggerParser().read(opts.getSwaggerUrl());
+                if (opts.getAuthorizationValue() != null) {
+                    List<AuthorizationValue> authorizationValues =
+                            new ArrayList<AuthorizationValue>();
+                    authorizationValues.add(opts.getAuthorizationValue());
+
+                    swagger =
+                            new SwaggerParser().read(opts.getSwaggerUrl(), authorizationValues,
+                                    true);
+                } else {
+                    swagger = new SwaggerParser().read(opts.getSwaggerUrl());
+                }
             } else {
                 throw new BadRequestException("No swagger specification was supplied");
             }
+        } else if (opts.getAuthorizationValue() != null) {
+            List<AuthorizationValue> authorizationValues = new ArrayList<AuthorizationValue>();
+            authorizationValues.add(opts.getAuthorizationValue());
+            swagger = new SwaggerParser().read(node, authorizationValues, true);
         } else {
             swagger = new SwaggerParser().read(node, true);
         }
@@ -90,20 +99,26 @@ public class Generator {
             throw new BadRequestException("The swagger specification supplied was not valid");
         }
 
+        String destPath = null;
+
+        if (opts != null && opts.getOptions() != null) {
+            destPath = opts.getOptions().get("outputFolder");
+        }
+        if (destPath == null) {
+            destPath = language + "-" + type.getTypeName();
+        }
+
         ClientOptInput clientOptInput = new ClientOptInput();
         ClientOpts clientOpts = new ClientOpts();
-        String outputFolder = getTmpFolder().getAbsolutePath() + File.separator + language + "-"
-                + type.getTypeName();
+        String outputFolder = getTmpFolder().getAbsolutePath() + File.separator + destPath;
         String outputFilename = outputFolder + "-bundle.zip";
 
-        clientOptInput
-                .opts(clientOpts)
-                .swagger(swagger);
+        clientOptInput.opts(clientOpts).swagger(swagger);
 
-        CodegenConfig codegenConfig=null;
+        CodegenConfig codegenConfig = null;
         try {
             codegenConfig = CodegenConfigLoader.forName(language);
-        } catch(RuntimeException e) {
+        } catch (RuntimeException e) {
             throw new BadRequestException("Unsupported target " + language + " supplied");
         }
 
@@ -127,20 +142,19 @@ public class Generator {
                 ZipUtil zip = new ZipUtil();
                 zip.compressFiles(filesToAdd, outputFilename);
             } else {
-                throw new BadRequestException("A target generation was attempted, but no files were created!");
+                throw new BadRequestException(
+                        "A target generation was attempted, but no files were created!");
             }
-            for(File file: files) {
+            for (File file : files) {
                 try {
                     file.delete();
-                }
-                catch(Exception e) {
+                } catch (Exception e) {
                     LOGGER.error("unable to delete file " + file.getAbsolutePath());
                 }
             }
             try {
                 new File(outputFolder).delete();
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 LOGGER.error("unable to delete output folder " + outputFolder);
             }
         } catch (Exception e) {

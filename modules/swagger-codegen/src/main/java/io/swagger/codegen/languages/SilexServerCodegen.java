@@ -3,6 +3,7 @@ package io.swagger.codegen.languages;
 import io.swagger.codegen.CodegenConfig;
 import io.swagger.codegen.CodegenConstants;
 import io.swagger.codegen.CodegenType;
+import io.swagger.codegen.CodegenOperation;
 import io.swagger.codegen.DefaultCodegen;
 import io.swagger.codegen.SupportingFile;
 import io.swagger.models.properties.ArrayProperty;
@@ -13,6 +14,10 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.lang3.StringUtils;
 
 public class SilexServerCodegen extends DefaultCodegen implements CodegenConfig {
     protected String invokerPackage;
@@ -29,15 +34,15 @@ public class SilexServerCodegen extends DefaultCodegen implements CodegenConfig 
 
         modelPackage = packagePath + "/lib/models";
         apiPackage = packagePath + "/lib";
-        outputFolder = "generated-code/silex";
+        outputFolder = "generated-code/php-silex";
 
         // no model, api files
         modelTemplateFiles.clear();
         apiTemplateFiles.clear();
 
-        embeddedTemplateDir = templateDir = "silex";
+        embeddedTemplateDir = templateDir = "php-silex";
 
-        reservedWords = new HashSet<String>(
+        setReservedWordsLowerCase(
                 Arrays.asList(
                         "__halt_compiler", "abstract", "and", "array", "as", "break", "callable", "case", "catch", "class", "clone", "const", "continue", "declare", "default", "die", "do", "echo", "else", "elseif", "empty", "enddeclare", "endfor", "endforeach", "endif", "endswitch", "endwhile", "eval", "exit", "extends", "final", "for", "foreach", "function", "global", "goto", "if", "implements", "include", "include_once", "instanceof", "insteadof", "interface", "isset", "list", "namespace", "new", "or", "print", "private", "protected", "public", "require", "require_once", "return", "static", "switch", "throw", "trait", "try", "unset", "use", "var", "while", "xor")
         );
@@ -98,19 +103,22 @@ public class SilexServerCodegen extends DefaultCodegen implements CodegenConfig 
 
     @Override
     public String getName() {
-        return "silex-PHP";
+        return "php-silex";
     }
 
     @Override
     public String getHelp() {
-        return "Generates a Silex server library.";
+        return "Generates a PHP Silex server library.";
     }
 
     @Override
-    public String escapeReservedWord(String name) {
+    public String escapeReservedWord(String name) {           
+        if(this.reservedWordsMappings().containsKey(name)) {
+            return this.reservedWordsMappings().get(name);
+        }
         return "_" + name;
     }
-
+    
     @Override
     public String apiFileFolder() {
         return (outputFolder + "/" + apiPackage()).replace('/', File.separatorChar);
@@ -185,7 +193,7 @@ public class SilexServerCodegen extends DefaultCodegen implements CodegenConfig 
     @Override
     public String toModelName(String name) {
         // model name cannot use reserved keyword
-        if (reservedWords.contains(name)) {
+        if (isReservedWord(name)) {
             escapeReservedWord(name); // e.g. return => _return
         }
 
@@ -198,6 +206,40 @@ public class SilexServerCodegen extends DefaultCodegen implements CodegenConfig 
     public String toModelFilename(String name) {
         // should be the same as the model name
         return toModelName(name);
+    }
+
+    @Override
+    public String escapeQuotationMark(String input) {
+        // remove ' to avoid code injection
+        return input.replace("'", "");
+    }
+
+    @Override
+    public String escapeUnsafeCharacters(String input) {
+        return input.replace("*/", "*_/").replace("/*", "/_*");
+    }
+
+    @Override
+    public Map<String, Object> postProcessOperations(Map<String, Object> objs) {
+        Map<String, Object> operations = (Map<String, Object>) objs.get("operations");
+        List<CodegenOperation> operationList = (List<CodegenOperation>) operations.get("operation");
+        for (CodegenOperation op : operationList) {
+            String path = new String(op.path);
+            String[] items = path.split("/", -1);
+            String opsPath = "";
+            int pathParamIndex = 0;
+
+            for (int i = 0; i < items.length; ++i) {
+                if (items[i].matches("^\\{(.*)\\}$")) { // wrap in {}
+                    // camelize path variable
+                    items[i] = "{" + camelize(items[i].substring(1, items[i].length()-1), true) + "}";
+                }
+            }
+
+            op.path = StringUtils.join(items, "/");
+        }
+
+        return objs;
     }
 
 }

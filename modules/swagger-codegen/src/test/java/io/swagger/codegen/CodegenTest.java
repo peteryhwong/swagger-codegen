@@ -1,5 +1,7 @@
 package io.swagger.codegen;
 
+import io.swagger.models.Model;
+import io.swagger.models.ModelImpl;
 import io.swagger.models.Operation;
 import io.swagger.models.Swagger;
 import io.swagger.models.properties.Property;
@@ -11,6 +13,48 @@ import org.testng.annotations.Test;
 import java.util.List;
 
 public class CodegenTest {
+
+    @Test(description = "test sanitizeTag")
+    public void sanitizeTagTest() {
+        final DefaultCodegen codegen = new DefaultCodegen();
+        Assert.assertEquals(codegen.sanitizeTag("foo"), "Foo");
+        Assert.assertEquals(codegen.sanitizeTag("$foo!"), "Foo");
+        Assert.assertEquals(codegen.sanitizeTag("foo bar"), "FooBar");
+        Assert.assertEquals(codegen.sanitizeTag("foo_bar"), "FooBar");
+        Assert.assertEquals(codegen.sanitizeTag("foo1 bar2"), "Foo1Bar2");
+        Assert.assertEquals(codegen.sanitizeTag("foo bar 1"), "FooBar1");
+        Assert.assertEquals(codegen.sanitizeTag("1foo"), "Class1foo");
+    }
+
+    @Test(description = "test underscore")
+    public void underscoreNamesTest() {
+        final DefaultCodegen codegen = new DefaultCodegen();
+
+        Assert.assertEquals(codegen.underscore("foo"), "foo");
+        Assert.assertEquals(codegen.underscore("foo-bar"), "foo_bar");
+        Assert.assertEquals(codegen.underscore("foo bar"), "foo_bar");
+
+        Assert.assertEquals(codegen.underscore("FooBar"), "foo_bar");
+        Assert.assertEquals(codegen.underscore("FooBarBaz"), "foo_bar_baz");
+    }
+
+    @Test(description = "test camelize")
+    public void camelizeNamesTest() {
+        final DefaultCodegen codegen = new DefaultCodegen();
+
+        Assert.assertEquals(codegen.camelize("foo"), "Foo");
+        Assert.assertEquals(codegen.camelize(".foo"), "Foo");
+        Assert.assertEquals(codegen.camelize(".foo.bar"), "FooBar");
+        Assert.assertEquals(codegen.camelize("foo$bar"), "Foo$bar");
+        Assert.assertEquals(codegen.camelize("foo_$bar"), "Foo$bar");
+        
+        Assert.assertEquals(codegen.camelize("foo_bar"), "FooBar");
+        Assert.assertEquals(codegen.camelize("foo_bar_baz"), "FooBarBaz");
+        Assert.assertEquals(codegen.camelize("foo/bar.baz"), "FooBarBaz");
+        Assert.assertEquals(codegen.camelize("/foo/bar/baz.qux/corge"), "FooBarBazQuxCorge");
+        Assert.assertEquals(codegen.camelize("foo-bar"), "FooBar");
+        Assert.assertEquals(codegen.camelize("foo-bar-xyzzy"), "FooBarXyzzy");
+    }
 
     @Test(description = "read a file upload param from a 2.0 spec")
     public void fileUploadParamTest() {
@@ -31,10 +75,10 @@ public class CodegenTest {
 
         final CodegenParameter file = op.formParams.get(1);
         Assert.assertTrue(file.isFormParam);
-        Assert.assertEquals(file.dataType, "file");
-        Assert.assertNull(file.required);
+        Assert.assertEquals(file.dataType, "File");
+        Assert.assertFalse(file.required);
         Assert.assertTrue(file.isFile);
-        Assert.assertNull(file.hasMore);
+        Assert.assertFalse(file.hasMore);
     }
 
     @Test(description = "read formParam values from a 2.0 spec")
@@ -61,7 +105,7 @@ public class CodegenTest {
         Assert.assertTrue(idParam.isPathParam);
         Assert.assertEquals(idParam.dataType, "String");
         Assert.assertTrue(idParam.required);
-        Assert.assertNull(idParam.hasMore);
+        Assert.assertFalse(idParam.hasMore);
 
         Assert.assertEquals(op.allParams.size(), 3);
         Assert.assertEquals(op.formParams.size(), 2);
@@ -70,16 +114,51 @@ public class CodegenTest {
         Assert.assertTrue(nameParam.isFormParam);
         Assert.assertTrue(nameParam.notFile);
         Assert.assertEquals(nameParam.dataType, "String");
-        Assert.assertNull(nameParam.required);
+        Assert.assertFalse(nameParam.required);
         Assert.assertTrue(nameParam.hasMore);
 
         final CodegenParameter statusParam = op.formParams.get(1);
         Assert.assertTrue(statusParam.isFormParam);
         Assert.assertTrue(statusParam.notFile);
         Assert.assertEquals(statusParam.dataType, "String");
-        Assert.assertNull(statusParam.required);
-        Assert.assertNull(statusParam.hasMore);
+        Assert.assertFalse(statusParam.required);
+        Assert.assertFalse(statusParam.hasMore);
     }
+
+    @Test(description = "handle enum array in query parameter test")
+    public void enumArrayQueryParameterTest() {
+        final Swagger model = parseAndPrepareSwagger("src/test/resources/2_0/petstore.json");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        final String path = "/pet/findByStatus";
+        final Operation p = model.getPaths().get(path).getGet();
+        final CodegenOperation op = codegen.fromOperation(path, "get", p, model.getDefinitions());
+
+        Assert.assertEquals(op.queryParams.size(), 1);
+
+        final CodegenParameter statusParam = op.queryParams.get(0);
+        Assert.assertEquals(statusParam.items.datatypeWithEnum, "StatusEnum");
+        Assert.assertNotNull(statusParam.items);
+        Assert.assertTrue(statusParam.items.isEnum);
+        Assert.assertEquals(statusParam.items._enum.size(), 3);
+    }
+
+    @Test(description = "handle enum in query parameter test")
+    public void enumQueryParameterTest() {
+        final Swagger model = parseAndPrepareSwagger("src/test/resources/2_0/petstore.json");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        final String path = "/pet/findByStatus";
+        final Operation p = model.getPaths().get(path).getGet();
+        final CodegenOperation op = codegen.fromOperation(path, "get", p, model.getDefinitions());
+
+        Assert.assertEquals(op.queryParams.size(), 1);
+
+        final CodegenParameter statusParam = op.queryParams.get(0);
+        Assert.assertEquals(statusParam.datatypeWithEnum, "List");
+        Assert.assertEquals(statusParam.baseType, "String");
+        Assert.assertTrue(statusParam.isEnum);
+        Assert.assertEquals(((List)statusParam.allowableValues.get("values")).size(), 3);
+    }
+
 
     @Test(description = "handle required parameters from a 2.0 spec as required when figuring out Swagger types")
     public void requiredParametersTest() {
@@ -140,7 +219,154 @@ public class CodegenTest {
         Assert.assertTrue(op.bodyParam.isBinary);
         Assert.assertTrue(op.responses.get(0).isBinary);
     }
+
+    @Test(description = "return file when response format is file")
+    public void fileResponeseTest() {
+        final Swagger model = parseAndPrepareSwagger("src/test/resources/2_0/fileResponseTest.json");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        final String path = "/tests/fileResponse";
+        final Operation p = model.getPaths().get(path).getGet();
+        final CodegenOperation op = codegen.fromOperation(path, "get", p, model.getDefinitions());
+
+        Assert.assertEquals(op.returnType, "File");
+        Assert.assertTrue(op.responses.get(0).isFile);
+        Assert.assertTrue(op.isResponseFile);
+    }
     
+    @Test(description = "discriminator is present")
+    public void discriminatorTest() {
+        final Swagger model = parseAndPrepareSwagger("src/test/resources/2_0/discriminatorTest.json");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        final String path = "/pets";
+        final Operation p = model.getPaths().get(path).getGet();
+        final CodegenOperation op = codegen.fromOperation(path, "get", p, model.getDefinitions());
+
+        Assert.assertEquals(op.discriminator, "className");
+    }
+
+    @Test(description = "handle simple composition")
+    public void  simpleCompositionTest() {
+        final Swagger swagger = parseAndPrepareSwagger("src/test/resources/2_0/allOfTest.yaml");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        codegen.supportsInheritance = true;
+        final Model model = swagger.getDefinitions().get("SimpleComposition");
+        CodegenModel composed = codegen.fromModel("SimpleComposition", model, swagger.getDefinitions());
+
+        Assert.assertEquals(composed.vars.size(), 3);
+        Assert.assertEquals(composed.vars.get(0).baseName, "modelOneProp");
+        Assert.assertEquals(composed.vars.get(1).baseName, "modelTwoProp");
+        Assert.assertEquals(composed.vars.get(2).baseName, "simpleCompositionProp");
+        Assert.assertNull(composed.parent);
+    }
+
+    @Test(description = "handle multi level composition")
+    public void  multiCompositionTest() {
+        final Swagger swagger = parseAndPrepareSwagger("src/test/resources/2_0/allOfTest.yaml");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        codegen.supportsInheritance = true;
+        final Model model = swagger.getDefinitions().get("CompositionOfSimpleComposition");
+        CodegenModel composed = codegen.fromModel("CompositionOfSimpleComposition", model, swagger.getDefinitions());
+
+        Assert.assertEquals(composed.vars.size(), 5);
+        Assert.assertEquals(composed.vars.get(0).baseName, "modelOneProp");
+        Assert.assertEquals(composed.vars.get(1).baseName, "modelTwoProp");
+        Assert.assertEquals(composed.vars.get(2).baseName, "simpleCompositionProp");
+        Assert.assertEquals(composed.vars.get(3).baseName, "modelThreeProp");
+        Assert.assertEquals(composed.vars.get(4).baseName, "compositionOfSimpleCompositionProp");
+        Assert.assertNull(composed.parent);
+    }
+
+    @Test(description = "handle simple inheritance")
+    public void  simpleInheritanceTest() {
+        final Swagger swagger = parseAndPrepareSwagger("src/test/resources/2_0/allOfTest.yaml");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        codegen.supportsInheritance = true;
+        final Model model = swagger.getDefinitions().get("ChildOfSimpleParent");
+        CodegenModel child = codegen.fromModel("ChildOfSimpleParent", model, swagger.getDefinitions());
+
+        Assert.assertEquals(child.vars.size(), 2);
+        Assert.assertEquals(child.vars.get(0).baseName, "modelOneProp");
+        Assert.assertEquals(child.vars.get(1).baseName, "childOfSimpleParentProp");
+        Assert.assertEquals(child.parent, "SimpleParent");
+    }
+
+    @Test(description = "handle multi level inheritance")
+    public void  multiInheritanceTest() {
+        final Swagger swagger = parseAndPrepareSwagger("src/test/resources/2_0/allOfTest.yaml");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        codegen.supportsInheritance = true;
+        final Model model = swagger.getDefinitions().get("ChildOfChildOfSimpleParent");
+        CodegenModel child = codegen.fromModel("ChildOfChildOfSimpleParent", model, swagger.getDefinitions());
+
+        Assert.assertEquals(child.vars.size(), 1);
+        Assert.assertEquals(child.vars.get(0).baseName, "childOfChildOfSimpleParentProp");
+        Assert.assertEquals(child.parent, "ChildOfSimpleParent");
+    }
+
+    @Test(description = "copy properties in multi level inheritance if supportsInheritance is false")
+    public void  noSupportsInheritanceTest() {
+        final Swagger swagger = parseAndPrepareSwagger("src/test/resources/2_0/allOfTest.yaml");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        final Model model = swagger.getDefinitions().get("ChildOfChildOfSimpleParent");
+        CodegenModel child = codegen.fromModel("ChildOfChildOfSimpleParent", model, swagger.getDefinitions());
+
+        Assert.assertEquals(child.vars.size(), 5);
+        Assert.assertEquals(child.vars.get(0).baseName, "modelOneProp");
+        Assert.assertEquals(child.vars.get(1).baseName, "disc");
+        Assert.assertEquals(child.vars.get(2).baseName, "simpleParentProp");
+        Assert.assertEquals(child.vars.get(3).baseName, "childOfSimpleParentProp");
+        Assert.assertEquals(child.vars.get(4).baseName, "childOfChildOfSimpleParentProp");
+        Assert.assertEquals(child.parent, "ChildOfSimpleParent");
+    }
+
+    @Test(description = "don't copy interfaces properties if supportsMixins is true")
+    public void  supportsMixinsTest() {
+        final Swagger swagger = parseAndPrepareSwagger("src/test/resources/2_0/allOfTest.yaml");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        codegen.supportsInheritance = true;
+        codegen.supportsMixins = true;
+        final Model model = swagger.getDefinitions().get("ChildOfChildOfSimpleParent");
+        CodegenModel child = codegen.fromModel("ChildOfChildOfSimpleParent", model, swagger.getDefinitions());
+
+        Assert.assertEquals(child.vars.size(), 1);
+        Assert.assertEquals(child.vars.get(0).baseName, "childOfChildOfSimpleParentProp");
+        Assert.assertEquals(child.allVars.size(), 5);
+        Assert.assertEquals(child.allVars.get(0).baseName, "modelOneProp");
+        Assert.assertEquals(child.allVars.get(1).baseName, "disc");
+        Assert.assertEquals(child.allVars.get(2).baseName, "simpleParentProp");
+        Assert.assertEquals(child.allVars.get(3).baseName, "childOfSimpleParentProp");
+        Assert.assertEquals(child.allVars.get(4).baseName, "childOfChildOfSimpleParentProp");
+
+        Assert.assertEquals(child.parent, "ChildOfSimpleParent");
+    }
+
+    @Test(description = "handle inheritance from composed model")
+    public void  inheritanceOfComposedModelTest() {
+        final Swagger swagger = parseAndPrepareSwagger("src/test/resources/2_0/allOfTest.yaml");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        codegen.supportsInheritance = true;
+        final Model model = swagger.getDefinitions().get("ChildOfComposedParent");
+        CodegenModel child = codegen.fromModel("ChildOfComposedParent", model, swagger.getDefinitions());
+
+        Assert.assertEquals(child.vars.size(), 1);
+        Assert.assertEquals(child.vars.get(0).baseName, "childOfComposedParentProp");
+        Assert.assertEquals(child.parent, "ComposedParent");
+    }
+
+    @Test(description = "handle multi level inheritance from composed model")
+    public void  multiInheritanceOfComposedModelTest() {
+        final Swagger swagger = parseAndPrepareSwagger("src/test/resources/2_0/allOfTest.yaml");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        codegen.supportsInheritance = true;
+        final Model model = swagger.getDefinitions().get("ChildOfChildOfComposedParent");
+        CodegenModel child = codegen.fromModel("ChildOfChildOfComposedParent", model, swagger.getDefinitions());
+
+        Assert.assertEquals(child.vars.size(), 1);
+        Assert.assertEquals(child.vars.get(0).baseName, "childOfChildOfComposedParentProp");
+        Assert.assertEquals(child.parent, "ChildOfComposedParent");
+    }
+
+
     @Test(description = "use operation consumes and produces")
     public void localConsumesAndProducesTest() {
         final Swagger model = parseAndPrepareSwagger("src/test/resources/2_0/globalConsumesAndProduces.json");
@@ -194,5 +420,37 @@ public class CodegenTest {
         // resolve inline models
         new InlineModelResolver().flatten(swagger);
         return swagger;
+    }
+
+    @Test(description = "isDeprecated is present")
+    public void deprecatedParamTest() {
+        final Swagger model = parseAndPrepareSwagger("src/test/resources/2_0/petstore.json");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        final String path = "/pet/findByTags";
+        final Operation p = model.getPaths().get(path).getGet();
+        final CodegenOperation op = codegen.fromOperation(path, "get", p, model.getDefinitions());
+
+        Assert.assertTrue(op.isDeprecated);
+    }
+
+    @Test(description = "https://github.com/swagger-api/swagger-codegen/issues/7980")
+    public void testPattern() throws Exception {
+        final Swagger swagger = parseAndPrepareSwagger("src/test/resources/2_0/petstore.yaml");
+        ModelImpl currency = (ModelImpl) swagger.getDefinitions().get("Currency");
+        Assert.assertNotNull(currency);
+        Assert.assertEquals(currency.getPattern(), "^[A-Z]{3,3}$");
+
+        ModelImpl amount = (ModelImpl) swagger.getDefinitions().get("Amount");
+
+        final DefaultCodegen codegen = new DefaultCodegen();
+
+        final CodegenModel codegenModel = codegen.fromModel("Amount", amount, swagger.getDefinitions());
+        for (CodegenProperty codegenProperty : codegenModel.vars) {
+            if ("currency".equalsIgnoreCase(codegenProperty.name)) {
+                Assert.assertEquals(codegenProperty.pattern, "^[A-Z]{3,3}$");
+                break;
+            }
+        }
+
     }
 }

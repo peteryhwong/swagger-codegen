@@ -8,9 +8,14 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:1.2.2'
+        {{#androidGradleVersion}}
+        classpath 'com.android.tools.build:gradle:{{{androidGradleVersion}}}'
+        {{/androidGradleVersion}}
+        {{^androidGradleVersion}}
+        classpath 'com.android.tools.build:gradle:2.3.+'
+        {{/androidGradleVersion}}
         {{#useAndroidMavenGradlePlugin}}
-        classpath 'com.github.dcendents:android-maven-plugin:1.2'
+        classpath 'com.github.dcendents:android-maven-gradle-plugin:1.5'
         {{/useAndroidMavenGradlePlugin}}
     }
 }
@@ -28,15 +33,37 @@ apply plugin: 'com.github.dcendents.android-maven'
 {{/useAndroidMavenGradlePlugin}}
 
 android {
-    compileSdkVersion 22
-    buildToolsVersion '22.0.0'
+    {{#androidSdkVersion}}
+    compileSdkVersion {{{androidSdkVersion}}}
+    {{/androidSdkVersion}}
+    {{^androidSdkVersion}}
+    compileSdkVersion 25
+    {{/androidSdkVersion}}
+    {{#androidBuildToolsVersion}}
+    buildToolsVersion '{{{androidBuildToolsVersion}}}'
+    {{/androidBuildToolsVersion}}
+    {{^androidBuildToolsVersion}}
+    buildToolsVersion '25.0.2'
+    {{/androidBuildToolsVersion}}
+    useLibrary  'org.apache.http.legacy'
     defaultConfig {
         minSdkVersion 14
-        targetSdkVersion 22
+        {{#androidSdkVersion}}
+        targetSdkVersion {{{androidSdkVersion}}}
+        {{/androidSdkVersion}}
+        {{^androidSdkVersion}}
+        targetSdkVersion 25
+        {{/androidSdkVersion}}
     }
     compileOptions {
+        {{#java8}}
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+        {{/java8}}
+        {{^java8}}
         sourceCompatibility JavaVersion.VERSION_1_7
         targetCompatibility JavaVersion.VERSION_1_7
+        {{/java8}}
     }
 
     // Rename the aar correctly
@@ -55,16 +82,17 @@ android {
 ext {
     swagger_annotations_version = "1.5.0"
     gson_version = "2.3.1"
-    httpclient_version = "4.3.3"
-    junit_version = "4.8.1"
+    httpclient_version = "4.5.2"
+    httpcore_version = "4.4.4"
+    junit_version = "4.12"
 }
 
 dependencies {
     compile "io.swagger:swagger-annotations:$swagger_annotations_version"
     compile "com.google.code.gson:gson:$gson_version"
-    compile "org.apache.httpcomponents:httpcore:$httpclient_version"
+    compile "org.apache.httpcomponents:httpcore:$httpcore_version"
     compile "org.apache.httpcomponents:httpclient:$httpclient_version"
-    compile ("org.apache.httpcomponents:httpcore:$httpclient_version") {
+    compile ("org.apache.httpcomponents:httpcore:$httpcore_version") {
         exclude(group: 'org.apache.httpcomponents', module: 'httpclient')
     }
     compile ("org.apache.httpcomponents:httpmime:$httpclient_version") {

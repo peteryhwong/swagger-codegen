@@ -1,53 +1,56 @@
 <?php
 
-require_once('autoload.php');
+namespace Swagger\Client;
+
+use Swagger\Client\Api\PetApi;
+use Swagger\Client\Api\StoreApi;
+use Swagger\Client\Model\Category;
+use Swagger\Client\Model\Pet;
+use Swagger\Client\Model\Tag;
 
 class StoreApiTest extends \PHPUnit_Framework_TestCase
 {
+    /** @var  StoreApi */
+    private $api;
 
-  // add a new pet (id 10005) to ensure the pet object is available for all the tests
-  public static function setUpBeforeClass() {
-    // for error reporting (need to run with php5.3 to get no warning)
-    //ini_set('display_errors', 1);
-    //error_reporting(~0);
-    // new pet
-    $new_pet_id = 10005;
-    $new_pet = new Swagger\Client\Model\Pet;
-    $new_pet->setId($new_pet_id);
-    $new_pet->setName("PHP Unit Test");
-    $new_pet->setStatus("available");
-    // new tag
-    $tag= new Swagger\Client\Model\Tag;
-    $tag->setId($new_pet_id); // use the same id as pet
-    $tag->setName("test php tag");
-    // new category
-    $category = new Swagger\Client\Model\Category;
-    $category->setId($new_pet_id); // use the same id as pet
-    $category->setName("test php category");
+    public function setUp()
+    {
+        $this->api = new StoreApi();
+    }
 
-    $new_pet->setTags(array($tag));
-    $new_pet->setCategory($category);
+    /**
+     * Setup before running each test case
+     */
+    public static function setUpBeforeClass()
+    {
+        // add a new pet (id 10005) to ensure the pet object is available for all the tests
+        // new pet
+        $id = 10005;
+        $pet = new Pet();
+        $pet->setId($id);
+        $pet->setName('PHP Unit Test');
+        $pet->setStatus('available');
+        // new tag
+        $tag = new Tag();
+        $tag->setId($id); // use the same id as pet
+        $tag->setName('test php tag');
+        // new category
+        $category = new Category();
+        $category->setId($id); // use the same id as pet
+        $category->setName('test php category');
 
-    $pet_api = new Swagger\Client\Api\PetAPI();
-    // add a new pet (model)
-    $add_response = $pet_api->addPet($new_pet);
-  }
+        $pet->setTags([$tag]);
+        $pet->setCategory($category);
 
-  // test get inventory
-  public function testGetInventory()
-  {
-    // initialize the API client
-    $config = (new Swagger\Client\Configuration())->setHost('http://petstore.swagger.io/v2');
-    $api_client = new Swagger\Client\ApiClient($config);
-    $store_api = new Swagger\Client\Api\StoreAPI($api_client);
-    // get inventory
-    $get_response = $store_api->getInventory();
+        $api = new PetApi();
+        $api->addPet($pet);
+    }
 
-    $this->assertInternalType("int", $get_response['available']);
+    public function testGetInventory()
+    {
+        $result = $this->api->getInventory();
 
-  }
-
+        $this->assertInternalType('array', $result);
+        $this->assertInternalType('int', $result['available']);
+    }
 }
-
-?>
-

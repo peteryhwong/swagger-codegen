@@ -68,6 +68,46 @@
   ([optional-params]
    (:data (create-users-with-list-input-with-http-info optional-params))))
 
+(defn delete-user-with-http-info
+  "Delete user
+  This can only be done by the logged in user."
+  [username ]
+  (check-required-params username)
+  (call-api "/user/{username}" :delete
+            {:path-params   {"username" username }
+             :header-params {}
+             :query-params  {}
+             :form-params   {}
+             :content-types []
+             :accepts       ["application/json" "application/xml"]
+             :auth-names    []}))
+
+(defn delete-user
+  "Delete user
+  This can only be done by the logged in user."
+  [username ]
+  (:data (delete-user-with-http-info username)))
+
+(defn get-user-by-name-with-http-info
+  "Get user by user name
+  "
+  [username ]
+  (check-required-params username)
+  (call-api "/user/{username}" :get
+            {:path-params   {"username" username }
+             :header-params {}
+             :query-params  {}
+             :form-params   {}
+             :content-types []
+             :accepts       ["application/json" "application/xml"]
+             :auth-names    []}))
+
+(defn get-user-by-name
+  "Get user by user name
+  "
+  [username ]
+  (:data (get-user-by-name-with-http-info username)))
+
 (defn login-user-with-http-info
   "Logs user into the system
   "
@@ -108,30 +148,12 @@
   []
   (:data (logout-user-with-http-info)))
 
-(defn get-user-by-name-with-http-info
-  "Get user by user name
-  "
-  [username ]
-  (call-api "/user/{username}" :get
-            {:path-params   {"username" username }
-             :header-params {}
-             :query-params  {}
-             :form-params   {}
-             :content-types []
-             :accepts       ["application/json" "application/xml"]
-             :auth-names    []}))
-
-(defn get-user-by-name
-  "Get user by user name
-  "
-  [username ]
-  (:data (get-user-by-name-with-http-info username)))
-
 (defn update-user-with-http-info
   "Updated user
   This can only be done by the logged in user."
   ([username ] (update-user-with-http-info username nil))
   ([username {:keys [body ]}]
+   (check-required-params username)
    (call-api "/user/{username}" :put
              {:path-params   {"username" username }
               :header-params {}
@@ -149,21 +171,3 @@
   ([username optional-params]
    (:data (update-user-with-http-info username optional-params))))
 
-(defn delete-user-with-http-info
-  "Delete user
-  This can only be done by the logged in user."
-  [username ]
-  (call-api "/user/{username}" :delete
-            {:path-params   {"username" username }
-             :header-params {}
-             :query-params  {}
-             :form-params   {}
-             :content-types []
-             :accepts       ["application/json" "application/xml"]
-             :auth-names    []}))
-
-(defn delete-user
-  "Delete user
-  This can only be done by the logged in user."
-  [username ]
-  (:data (delete-user-with-http-info username)))
